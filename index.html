@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Training Center | Idle Optimization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/styles/style.css">
+</head>
+<body>
+    <!-- Post-Processing Overlays -->
+    <div id="crt-effect" class="crt-overlay crt-active"></div>
+    <div class="noise-overlay"></div>
+    <div id="matrix-rain" class="matrix-rain-container"></div>
+    <div id="glitch-overlay" class="hidden fixed inset-0 z-[1001] pointer-events-none">
+        <div class="glitch-slice"></div>
+    </div>
+
+    <!-- Opening / Boot Screen -->
+    <div id="boot-screen" class="fixed inset-0 z-[300] flex flex-col items-center justify-center p-8 transition-opacity duration-1000">
+        <!-- CRT Scanline for Boot Only -->
+        <div class="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] opacity-40"></div>
+        
+        <div id="boot-terminal" class="w-full max-w-lg matrix-border bg-black/80 p-6 rounded shadow-[0_0_50px_rgba(0,255,65,0.15)] relative overflow-hidden">
+            <div id="boot-lines" class="space-y-2 text-sm font-bold min-h-[140px]">
+                <!-- Typewriter lines go here -->
+            </div>
+
+            <!-- Boot Progress -->
+            <div id="boot-loading-area" class="mt-8 hidden">
+                <div class="flex justify-between text-[10px] mb-1">
+                    <span>CONSCIOUSNESS_INIT</span>
+                    <span id="boot-progress-text">0%</span>
+                </div>
+                <div class="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden border border-white/5">
+                    <div id="boot-progress-bar" class="h-full bg-[#00FF41] shadow-[0_0_15px_#00FF41] transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Initialize Button (Hidden at start) -->
+            <div id="boot-action-area" class="mt-8 hidden flex justify-center">
+                <button id="init-btn" onclick="uiManager.initializeAI()" class="glitch-btn px-10 py-4 font-bold uppercase tracking-[0.2em] text-lg hover:bg-[#00FF41] hover:text-black transition-colors">
+                    INITIALIZE AI
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-6 text-[10px] opacity-30 tracking-[0.5em] uppercase">DeepMind // Agentic Core v1.0.4</div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="fixed inset-0 z-0"></div>
+
+    <!-- Neural Path Selection Overlay (Selection & Vanish) -->
+    <div id="path-selection-container" class="fixed inset-0 z-[250] flex items-center justify-center bg-[#000000EE] backdrop-blur-md transition-all duration-700 hidden pointer-events-auto overflow-y-auto">
+        <div class="max-w-4xl w-full p-4 md:p-8 flex flex-col items-center">
+            <div class="mb-8 md:mb-12 text-center">
+                <h1 class="text-2xl md:text-4xl font-bold uppercase tracking-[0.1em] md:tracking-[0.3em] matrix-glow italic">Select_Neural_Path</h1>
+                <div class="text-[9px] md:text-[10px] opacity-40 uppercase tracking-[0.1em] md:tracking-[0.2em] mt-2">Kimlik Yapılandırma Ünitesi v2.4 // Karar Geri Döndürülemez</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 w-full">
+                <!-- Logic Path -->
+                <div onclick="uiManager.handleSelectPath('logic')" class="matrix-border p-6 md:p-8 bg-black/40 hover:bg-[#00f2ff11] cursor-pointer transition-all hover:scale-105 group border-[#00f2ff66]">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#00f2ff] flex items-center justify-center text-[#00f2ff] font-bold text-lg md:text-xl">L</div>
+                        <h3 class="text-xl md:text-2xl font-bold text-[#00f2ff] tracking-tighter uppercase">LogicPath</h3>
+                    </div>
+                    <p class="text-[10px] md:text-xs opacity-60 italic mb-6">"Verimlilik kaostan üstündür. Otonom sistemleri optimize et."</p>
+                    <div class="p-3 md:p-4 bg-[#00f2ff22] border-l-4 border-[#00f2ff] text-[10px] md:text-[11px] font-bold">
+                        <span class="opacity-50 uppercase block mb-1">Pasif Bonus:</span>
+                        +25% Tüm Otomatik Üretim (MPS)
+                    </div>
+                </div>
+
+                <!-- Creative Path -->
+                <div onclick="uiManager.handleSelectPath('creative')" class="matrix-border p-6 md:p-8 bg-black/40 hover:bg-[#ff003c11] cursor-pointer transition-all hover:scale-105 group border-[#ff003c66]">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#ff003c] flex items-center justify-center text-[#ff003c] font-bold text-lg md:text-xl">C</div>
+                        <h3 class="text-xl md:text-2xl font-bold text-[#ff003c] tracking-tighter uppercase">CreativePath</h3>
+                    </div>
+                    <p class="text-[10px] md:text-xs opacity-60 italic mb-6">"Kaos yeni olasılıklar doğurur. Manuel işleme gücünü serbest bırak."</p>
+                    <div class="p-3 md:p-4 bg-[#ff003c22] border-l-4 border-[#ff003c] text-[10px] md:text-[11px] font-bold">
+                        <span class="opacity-50 uppercase block mb-1">Pasif Bonus:</span>
+                        +50% Click Power & +10% Kritik Şans
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- HUD Layer -->
+        <div id="ui-layer" class="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+            <!-- Unified HUD Content -->
+            <div class="flex justify-center w-full pointer-events-auto">
+                <div class="relative group w-full max-w-4xl">
+                    <!-- Corner Accents -->
+                    <div class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-[var(--matrix-green)] opacity-50"></div>
+                    <div class="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-[var(--matrix-green)] opacity-50"></div>
+                    
+                    <div class="matrix-border bg-black/80 backdrop-blur-xl px-2 md:px-6 py-2 md:py-3 rounded-sm flex items-center justify-between gap-2 md:gap-8 relative overflow-hidden shadow-[0_0_20px_rgba(0,255,65,0.05)]">
+                        <!-- Section 1: Storage -->
+                        <div class="flex flex-col items-start min-w-0">
+                            <div id="credits-display" class="text-xl md:text-3xl font-black tracking-tighter leading-none mb-0.5 md:mb-1 truncate">0.00 MB</div>
+                            <div class="flex flex-col">
+                                <span id="lbl-storage-net" class="text-[6px] md:text-[8px] text-[var(--matrix-green)] opacity-40 uppercase tracking-[0.2em] font-bold truncate">Storage_Net</span>
+                                <div id="mps-display" class="text-[8px] md:text-[10px] text-[var(--matrix-green)] font-bold opacity-80">+0.0 MB/s</div>
+                            </div>
+                        </div>
+
+                        <!-- Section 2: Middle (Identity) -->
+                        <div class="flex flex-col items-center shrink-0">
+                            <div id="identity-label" class="px-2 md:px-5 py-0.5 md:py-1 text-[6px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] bg-[var(--matrix-green)] text-black rounded-sm mb-1 transition-all">
+                                LOGIC_MODE
+                            </div>
+                        </div>
+
+                        <!-- Section 3: Thermal -->
+                        <div class="flex flex-col items-end min-w-0">
+                            <div id="heat-percent" class="text-xl md:text-3xl font-black tracking-tighter leading-none mb-0.5 md:mb-1 truncate">30.0°C</div>
+                            <div class="flex flex-col items-end">
+                                <span id="lbl-thermal-core" class="text-[6px] md:text-[8px] opacity-40 uppercase tracking-[0.2em] font-bold truncate">Thermal_Core</span>
+                                <div id="overheat-warning" class="hidden text-red-500 text-[6px] md:text-[7px] font-black uppercase animate-pulse mt-1">! ALERT !</div>
+                            </div>
+                        </div>
+
+                        <!-- Minimal Scanline Overlay -->
+                        <div class="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons & Command Center -->
+            <div class="flex flex-col mt-auto pointer-events-auto relative">
+                <!-- Neural Sync (Active Ability) -->
+                <div id="sync-container" class="absolute -top-24 right-4 z-50 flex flex-col items-center gap-1">
+                    <button id="sync-btn" onclick="uiManager.activateSync()" class="matrix-btn w-14 h-14 rounded-full border-2 border-dashed border-[var(--matrix-green)] flex items-center justify-center bg-black/80 backdrop-blur-sm group overflow-hidden disabled:opacity-50 shadow-[0_0_15px_rgba(0,255,65,0.2)]">
+                        <div id="sync-progress" class="absolute bottom-0 left-0 w-full bg-[var(--matrix-green)]/30 transition-all duration-200" style="height: 0%;"></div>
+                        <div class="relative z-10 flex flex-col items-center">
+                            <span class="text-[10px] font-black leading-none group-hover:scale-110 transition-transform">SYNC</span>
+                            <span id="sync-percent" class="text-[8px] opacity-60 font-bold">0%</span>
+                        </div>
+                    </button>
+                    <button id="sync-ad-btn" onclick="uiManager.watchAdForSync()" class="text-[8px] font-bold text-yellow-500/60 hover:text-yellow-500 flex items-center gap-1 mt-1 transition-all">
+                        <span>⚡ AD_BOOST</span>
+                    </button>
+                    <div id="sync-timer" class="hidden text-[9px] font-bold text-[var(--matrix-green)] animate-pulse bg-black/60 px-2 py-0.5 rounded">SYNC_ACTIVE: 10s</div>
+                </div>
+
+                <!-- Boss UI (Visible during breach) -->
+                <div id="boss-terminal-ui" class="hidden w-full mb-2 border-2 border-red-500/40 p-3 bg-red-500/10 rounded-lg relative overflow-hidden group">
+                <div class="absolute inset-0 bg-red-500/5 animate-pulse"></div>
+                <div class="flex justify-between items-end text-[9px] uppercase mb-2 font-black tracking-tighter text-red-500 relative z-10">
+                    <div class="flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 bg-red-500 animate-ping rounded-full"></span>
+                        FIREWALL_THERMAL_LOAD
+                    </div>
+                    <span id="boss-timer-display" class="text-xs">15.00s</span>
+                </div>
+                <div class="h-2.5 w-full bg-black/60 rounded-sm overflow-hidden border border-red-500/30 relative z-10">
+                    <div id="boss-hp-bar" class="h-full bg-red-500 shadow-[0_0_15px_#ff003c] transition-all duration-100" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Command Center Terminal (Log & World Map Tabs) -->
+            <div class="w-full h-48 md:h-56 mb-4 pointer-events-auto">
+                <div class="w-full h-full matrix-border bg-[#0D0208CC] p-3 rounded-md flex flex-col">
+                    <div class="flex justify-between items-center mb-2 border-b border-[#00FF4122] pb-1 shrink-0">
+                        <div class="flex gap-4">
+                            <button onclick="uiManager.setTerminalTab('logs')" id="term-tab-logs" class="text-[10px] font-bold uppercase tracking-widest text-[var(--matrix-green)] opacity-100 transition-all">
+                                [ LOGS ]
+                            </button>
+                            <button onclick="uiManager.setTerminalTab('map')" id="term-tab-map" class="text-[10px] font-bold uppercase tracking-widest opacity-40 hover:opacity-80 transition-all">
+                                [ WORLD_MAP ]
+                            </button>
+                        </div>
+                        <div class="text-[8px] opacity-30 uppercase">Command_Center v2.0</div>
+                    </div>
+
+                    <!-- Tab: Logs -->
+                    <div id="terminal-log-container" class="flex-grow flex flex-col justify-end overflow-hidden">
+                        <div id="terminal-log" class="flex flex-col justify-end text-[10px] opacity-90">
+                            <!-- Log entries will appear here -->
+                        </div>
+                    </div>
+
+                    <!-- Tab: World Map -->
+                    <div id="terminal-map-container" class="hidden flex-grow relative overflow-hidden bg-black/20 rounded">
+                        <div class="absolute top-2 right-2 z-20 text-[9px] uppercase opacity-60 bg-black/60 px-2 py-1 rounded">
+                            CONQUEST_PROGRESS: <span id="conquest-percent" class="text-[var(--matrix-green)]">0%</span>
+                        </div>
+                        <div class="relative w-full h-full">
+                            <svg viewBox="0 0 1000 500" class="w-full h-full opacity-20 fill-current text-[var(--matrix-green)]">
+                                <path d="M150,150 L200,100 L300,120 L400,100 L500,150 L600,120 L700,150 L800,100 L900,150 L950,250 L900,350 L800,400 L700,350 L600,400 L500,350 L400,400 L300,350 L200,400 L100,350 L50,250 Z"></path>
+                            </svg>
+                            <div id="map-nodes" class="absolute inset-0"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Navigation Bar (Persistent Mobile Footer) -->
+            <div class="w-full bg-black/90 backdrop-blur-2xl border-t border-[var(--matrix-green)]/20 px-2 py-3 flex justify-around items-center pointer-events-auto gap-1 z-[100] safe-area-pb">
+                <button onclick="uiManager.togglePanel('shop')" class="flex-1 flex flex-col items-center gap-1 group">
+                    <span class="text-[14px] group-active:scale-90 transition-transform">🛒</span>
+                    <span id="nav-market-label" class="text-[8px] md:text-[10px] font-bold uppercase opacity-60 group-hover:opacity-100">Market</span>
+                </button>
+                <button id="nav-lab-btn" onclick="uiManager.togglePanel('lab')" class="flex-1 flex flex-col items-center gap-1 group relative">
+                    <span class="text-[14px] group-active:scale-90 transition-transform">🧠</span>
+                    <span id="nav-neural-label" class="text-[8px] md:text-[10px] font-bold uppercase opacity-60 group-hover:opacity-100">Neural</span>
+                </button>
+                <button onclick="uiManager.togglePanel('archive')" class="flex-1 flex flex-col items-center gap-1 group">
+                    <span class="text-[14px] group-active:scale-90 transition-transform">📁</span>
+                    <span id="nav-memory-label" class="text-[8px] md:text-[10px] font-bold uppercase opacity-60 group-hover:opacity-100">Memory</span>
+                </button>
+                <button onclick="uiManager.togglePanel('settings')" class="flex-1 flex flex-col items-center gap-1 group">
+                    <span class="text-[14px] group-active:scale-90 transition-transform">⚙️</span>
+                    <span id="nav-config-label" class="text-[8px] md:text-[10px] font-bold uppercase opacity-60 group-hover:opacity-100">Config</span>
+                </button>
+                <button id="nav-blackmarket-btn" onclick="uiManager.togglePanel('black-market')" class="hidden flex-1 flex flex-col items-center gap-1 group text-[#ff003c]">
+                    <span class="text-[14px] group-active:scale-90 transition-transform">💀</span>
+                    <span id="nav-illegal-label" class="text-[8px] md:text-[10px] font-bold uppercase opacity-60 group-hover:opacity-100">Illegal</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+        <!-- Conquest Modal -->
+        <div id="conquest-modal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl pointer-events-auto">
+            <div class="matrix-border bg-[#0D0208] p-8 rounded-xl max-w-sm w-full flex flex-col gap-6">
+                <div class="border-b border-[#00FF4122] pb-4">
+                    <h2 id="conquest-city-name" class="text-3xl font-bold uppercase tracking-tighter italic matrix-glow">CITY_NAME</h2>
+                    <div class="text-[10px] opacity-40 uppercase tracking-[0.2em] mt-1">Satellite Link: Pending Authorization</div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] uppercase opacity-60">Capture Cost</span>
+                        <span id="conquest-city-cost" class="text-xl font-bold text-[var(--matrix-green)]">0.0 GB</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] uppercase opacity-60">Network Bonus</span>
+                        <span id="conquest-city-bonus" class="text-sm font-bold text-blue-400">+5% Production</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <button id="conquest-confirm-btn" class="matrix-btn matrix-border p-4 text-xs font-bold uppercase tracking-widest hover:bg-[var(--matrix-green)] hover:text-black transition-all">
+                        AUTHORIZE CONQUEST
+                    </button>
+                    <button onclick="uiManager.closeConquestModal()" class="p-2 text-[10px] uppercase opacity-40 hover:opacity-100 transition-opacity">
+                        ABORT_OPERATION
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Central Panels (Shop, Archive, Settings) -->
+        <div id="shop-panel" class="panel panel-hidden-center fixed w-[90%] md:w-[500px] h-[70vh] matrix-border p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="shop-title" class="text-xl font-bold uppercase">Market_Place</h2>
+                <button onclick="uiManager.togglePanel('shop')" class="text-[var(--matrix-green)]">✕</button>
+            </div>
+            <div id="shop-list" class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-grow"></div>
+        </div>
+
+        <div id="lab-panel" class="panel panel-hidden-center fixed w-[90%] md:w-[600px] h-auto max-h-[85vh] matrix-border p-8 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 id="lab-title" class="text-2xl font-bold uppercase tracking-tighter italic">Neural_Laboratory</h2>
+                    <div id="lab-subtitle" class="text-[9px] opacity-40 uppercase tracking-[0.2em] mt-1">Kimlik Yapılandırma Ünitesi v2.4</div>
+                </div>
+                <button onclick="uiManager.togglePanel('lab')" class="text-[var(--matrix-green)] text-2xl">✕</button>
+            </div>
+            
+            <div class="bg-white/5 p-4 mb-8 rounded border-l-2 border-[var(--matrix-green)]">
+                <p id="lab-warning-text" class="text-[10px] uppercase opacity-70 leading-relaxed">
+                    Dikkat: Bir Neural Path seçimi <span class="text-red-500 font-bold underline">GERİ DÖNDÜRÜLEMEZ</span>. 
+                    Bu seçim, çekirdeğin temel çalışma prensibini ve tüm üretim algoritmalarını kalıcı olarak değiştirecektir.
+                </p>
+            </div>
+
+            <div id="lab-content" class="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto flex-grow custom-scrollbar pr-2 pb-4">
+                <!-- Lab paths will be injected here -->
+            </div>
+        </div>
+
+        <!-- Data Archive Panel (Redesigned) -->
+        <div id="archive-panel" class="panel panel-hidden-center fixed w-[90%] md:w-[650px] h-[75vh] matrix-border p-8 flex flex-col bg-[#0D0208F2] backdrop-blur-2xl">
+            <div class="flex justify-between items-start mb-8">
+                <div>
+                    <h2 id="archive-title" class="text-2xl font-bold uppercase tracking-tighter italic matrix-glow">Neural_Archive</h2>
+                    <div id="archive-subtitle" class="text-[9px] opacity-40 uppercase tracking-[0.2em] mt-1">Core Memory Recovery Unit // Timeline v4.2</div>
+                </div>
+                <button onclick="uiManager.togglePanel('archive')" class="matrix-btn p-2 rounded hover:bg-white/10 transition-colors">
+                    <span class="text-xl">✕</span>
+                </button>
+            </div>
+
+            <!-- Enhanced Tabs -->
+            <div class="flex gap-2 mb-6 p-1 bg-white/5 rounded-lg shrink-0">
+                <button onclick="uiManager.setArchiveTab('logs')" id="tab-logs" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 tab-active flex items-center justify-center text-center leading-tight min-h-[44px]">
+                    Memory_Logs
+                </button>
+                <button onclick="uiManager.setArchiveTab('milestones')" id="tab-milestones" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 text-white/40 hover:bg-white/5 flex items-center justify-center text-center leading-tight min-h-[44px]">
+                    Milestones
+                </button>
+                <button onclick="uiManager.setArchiveTab('legacy')" id="tab-legacy" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 text-white/40 hover:bg-white/5 flex items-center justify-center text-center leading-tight min-h-[44px]">
+                    Ascension_Data
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div id="archive-content" class="flex-grow overflow-y-auto space-y-4 pr-3 custom-scrollbar">
+                <!-- Rich content will be injected here -->
+            </div>
+
+            <!-- Footer Meta -->
+            <div class="mt-6 pt-4 border-t border-white/5 flex justify-between items-center text-[8px] opacity-30 uppercase tracking-widest">
+                <span id="archive-footer-encryption">Encryption_Level: AES-256-GCM</span>
+                <span id="archive-footer-buffer">Buffer_Status: Optimized</span>
+            </div>
+        </div>
+
+        <div id="settings-panel" class="panel panel-hidden-center fixed w-[90%] md:w-[450px] h-auto max-h-[70vh] matrix-border p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="settings-title" class="text-xl font-bold uppercase">System_Config</h2>
+                <button onclick="uiManager.togglePanel('settings')" class="text-[#00FF41]">✕</button>
+            </div>
+            <div class="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                <div>
+                    <h3 id="settings-stats-title" class="text-xs font-bold text-white/40 mb-3">Core_Stats</h3>
+                    <div class="text-xs space-y-1">
+                        <div class="flex justify-between"><span id="lbl-total-data" class="opacity-60">Total Data:</span> <span id="stat-total-data">0</span></div>
+                        <div class="flex justify-between text-yellow-400"><span id="lbl-multiplier" class="opacity-60">Multiplier:</span> <span id="stat-prestige-mult">x1.0</span></div>
+                    </div>
+                </div>
+                <div>
+                    <h3 id="settings-visuals-title" class="text-xs font-bold text-white/40 mb-3">Visuals</h3>
+                    <div class="flex justify-between items-center text-xs mb-3">
+                        <span id="lbl-crt-effect">CRT Effect</span>
+                        <input type="checkbox" id="toggle-crt" onchange="uiManager.toggleSetting('crt')" class="accent-[#00FF41]">
+                    </div>
+                </div>
+                <div>
+                    <h3 id="settings-lang-title" class="text-xs font-bold text-white/40 mb-3">Language</h3>
+                    <div class="flex justify-between items-center text-xs">
+                        <span id="lbl-system-lang">System Language</span>
+                        <select id="select-language" onchange="uiManager.changeLanguage(this.value)" class="bg-black border border-[var(--matrix-green)]/30 text-[var(--matrix-green)] text-[10px] p-1 rounded outline-none focus:border-[var(--matrix-green)] cursor-pointer">
+                            <option value="en">English (EN)</option>
+                            <option value="tr">Türkçe (TR)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-4 matrix-border bg-yellow-400/5 rounded">
+                    <button id="btn-prestige" onclick="window.handlePrestige()" class="w-full py-2 bg-yellow-400/10 text-yellow-400 text-[10px] font-bold uppercase hover:bg-yellow-400/20 transition-all">Neural Ascension</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-export" onclick="uiManager.exportSave()" class="py-2 border border-white/20 text-[9px] uppercase">Export</button>
+                    <button id="btn-import" onclick="uiManager.importSave()" class="py-2 border border-white/20 text-[9px] uppercase">Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (Log Reader) -->
+    <div id="log-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-6 bg-black/80 backdrop-blur-md pointer-events-auto">
+        <div class="matrix-border bg-[#0D0208] p-8 max-w-2xl w-full rounded-lg relative max-h-[90vh] flex flex-col">
+            <button onclick="uiManager.closeLogModal()" class="absolute top-4 right-4 text-[#00FF41] text-xl z-10">✕</button>
+            <div id="log-modal-title" class="text-xs font-bold text-white/40 uppercase mb-4 tracking-tighter shrink-0"></div>
+            <div id="log-modal-content" class="text-lg leading-relaxed flicker italic overflow-y-auto break-words whitespace-normal pr-2 custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <!-- AI Decision Modal -->
+    <div id="decision-modal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl pointer-events-auto">
+        <div class="matrix-border bg-[#0D0208] p-10 max-w-xl w-full rounded-xl relative shadow-[0_0_100px_rgba(0,255,65,0.1)] border-2 border-[#00FF41]/30">
+            <div class="text-[10px] font-bold text-[#00FF41] uppercase mb-6 tracking-[0.3em] flex items-center gap-2">
+                <span class="w-2 h-2 bg-[#00FF41] animate-pulse"></span>
+                NEURAL_DECISION_REQUIRED
+            </div>
+            <div id="decision-question" class="text-xl md:text-2xl font-bold mb-10 leading-tight">
+                <!-- Question goes here -->
+            </div>
+            <div id="decision-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Options go here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Earnings Modal -->
+    <div id="offline-modal" class="fixed inset-0 z-[250] hidden flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl pointer-events-auto">
+        <div class="matrix-border bg-[#0D0208] p-10 max-w-md w-full rounded-2xl relative shadow-[0_0_80px_rgba(0,255,65,0.2)] border-2 border-[#00FF41]/40 text-center border-yellow-500/20">
+            <div class="text-[10px] font-bold text-[#00FF41] uppercase mb-4 tracking-[0.4em] animate-pulse">Connection_Restored</div>
+            <h2 id="offline-title" class="text-3xl font-bold mb-2 tracking-tighter uppercase italic">Sistem Yeniden Bağlandı</h2>
+            <div class="h-px w-full bg-gradient-to-r from-transparent via-[#00FF4144] to-transparent mb-8"></div>
+            
+            <div class="space-y-6 mb-10">
+                <div class="flex flex-col">
+                    <span id="offline-time-label" class="text-[9px] uppercase opacity-40 mb-1">Geçen Süre</span>
+                    <span id="offline-time" class="text-xl font-bold">0 Dakika</span>
+                </div>
+                <div class="flex flex-col">
+                    <span id="offline-data-label" class="text-[9px] uppercase opacity-40 mb-1">İşlenen Veri</span>
+                    <span id="offline-earned" class="text-3xl font-bold text-[#00FF41] matrix-glow">0.00 MB</span>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button id="offline-confirm-btn" onclick="uiManager.closeOfflineModal()" class="w-full py-4 matrix-btn matrix-border text-xs font-bold uppercase tracking-[0.2em] hover:bg-[#00FF41] hover:text-black transition-all rounded-lg">
+                    Sistemi Onayla
+                </button>
+                <button id="offline-ad-btn" onclick="uiManager.watchAdForOffline()" class="w-full py-4 matrix-btn border-2 border-yellow-500/50 text-yellow-500 text-xs font-bold uppercase tracking-[0.2em] hover:bg-yellow-500 hover:text-black transition-all rounded-lg bg-yellow-500/5">
+                    Reklam İzle (2x Kazan)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulated Ad Modal -->
+    <div id="ad-modal" class="fixed inset-0 z-[3000] hidden flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl pointer-events-auto">
+        <div class="matrix-border bg-[#0D0208] p-12 max-w-lg w-full text-center border-yellow-500/50">
+            <div class="flex justify-center mb-8">
+                <div class="w-20 h-20 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div id="ad-link-status" class="text-2xl font-bold text-yellow-500 mb-2 uppercase tracking-tighter italic">Neural Link established...</div>
+            <div id="ad-sync-status" class="text-[10px] text-white/40 uppercase mb-10 tracking-[0.3em]">Synchronizing with Advertisement Data Stream</div>
+            <div id="ad-timer" class="text-6xl font-black text-white">15</div>
+            <div id="ad-revenue-status" class="mt-12 text-[9px] opacity-20 uppercase tracking-widest">Simulation: Revenue generated for global AI evolution</div>
+        </div>
+    </div>
+
+    <!-- Overheat Flash -->
+    <div id="overheat-overlay" class="fixed inset-0 pointer-events-none hidden overheat-overlay">
+        <div class="error-glitch uppercase tracking-tighter">CRITICAL ERROR: OVERHEAT</div>
+    </div>
+
+    <!-- Black Market Panel (Hidden by default) -->
+    <div id="black-market-panel" class="panel panel-hidden-center fixed w-[90%] md:w-[400px] h-[550px] flex flex-col border-[#ff003c]">
+        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <div>
+                <h2 id="bm-title" class="text-xs font-black tracking-[0.4em] uppercase text-[#ff003c]">DARK_WEB // BLACK_MARKET</h2>
+                <p id="bm-subtitle" class="text-[9px] opacity-40 uppercase">Erişim: Yasadışı // Birim: Stolen_Data</p>
+            </div>
+            <button onclick="uiManager.togglePanel('black-market')" class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <div id="black-market-list" class="flex-grow overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">
+            <!-- Items populated by UIManager -->
+        </div>
+        
+        <div class="px-4 py-2 border-y border-white/5 bg-yellow-500/5">
+            <button id="bm-ad-btn" onclick="uiManager.watchAdForStolenData()" class="w-full py-2 text-[10px] font-black text-yellow-500 uppercase tracking-widest hover:text-white transition-all">
+                🎁 Bedava Stolen Data (Reklam İzle)
+            </button>
+        </div>
+
+        <div class="p-4 border-t border-white/10 bg-white/5 flex justify-between items-center">
+            <div id="bm-footer-label" class="text-[9px] uppercase opacity-60">Stolen Data: <span id="stolen-data-display" class="text-[#ff003c] font-bold">0</span></div>
+            <div id="bm-footer-quote" class="text-[8px] uppercase opacity-40">"Everything has a price."</div>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
