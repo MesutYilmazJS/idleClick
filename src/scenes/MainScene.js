@@ -34,33 +34,34 @@ export class MainScene extends Phaser.Scene {
 
         // Global Click Listener
         this.input.on('pointerdown', (pointer) => {
+            const state = this.engine.state;
             const core = this.aiCore;
-            if (core && !core.hitArea.getBounds().contains(pointer.x, pointer.y)) {
-                if (this.engine.state.isOverheated) {
-                    this.cameras.main.shake(100, 0.005);
-                    core.showFloatingText(pointer.x, pointer.y, 'OVERHEAT', '#ff0000');
-                    return;
+
+            // 1. Boss Interaction (Global)
+            if (state.isBossActive) {
+                const damage = state.addCredits(state.clickPower);
+                if (core) {
+                    core.showFloatingText(pointer.x, pointer.y, `DMG: ${damage.gain.toFixed(0)}`, '#ff003c');
+                    core.onInteraction(pointer);
                 }
+                return;
+            }
 
-                let clickPower = this.engine.state.clickPower;
-                let specialText = null;
+            // 2. Overheat Check
+            if (state.isOverheated) {
+                this.cameras.main.shake(100, 0.005);
+                if (core) core.showFloatingText(pointer.x, pointer.y, 'OVERHEAT', '#ff0000');
+                return;
+            }
 
-                // Omniscience Script Check
-                const omniscience = this.engine.state.illegalUpgrades.find(u => u.id === 'all_data_script');
-                if (omniscience && omniscience.level > 0 && Math.random() < omniscience.chance) {
-                    clickPower = this.engine.state.totalDataEver * 0.1; // Collect 10% of total data ever
-                    specialText = "OMNISCIENCE";
-                    this.cameras.main.flash(200, 255, 255, 255);
-                }
-
-                const { gain, isCritical } = this.engine.state.addCredits(clickPower);
-                this.engine.state.addHeat(this.engine.state.heatPerClick);
-                this.engine.state.totalClicks++;
-                
-                const formattedGain = specialText || `+${this.engine.state.formatValue(gain)}`;
-                const textColor = specialText ? '#ff003c' : (isCritical ? '#ffffff' : (this.engine.state.skillTree.selectedPath === 'creative' ? '#ff003c' : '#00FF41'));
-                
-                core.showFloatingText(pointer.x, pointer.y, formattedGain, textColor, isCritical || !!specialText);
+            // 3. Normal Interaction (Global - Screen Wide)
+            const data = state.addCredits(state.clickPower);
+            state.addHeat(state.heatPerClick);
+            state.totalClicks++;
+            
+            if (core) {
+                const textColor = (state.skillTree.selectedPath === 'creative' ? '#ff4d00' : '#00d2ff');
+                core.showFloatingText(pointer.x, pointer.y, `+${state.formatValue(data.gain)}`, textColor);
                 core.onInteraction(pointer);
             }
         });

@@ -79,7 +79,7 @@ export class StateManager {
         };
 
         this.stolenData = 0;
-        this.nextBossAttempt = Date.now() + (2 * 60 * 1000); // First boss after 2 mins
+        this.setRandomBossTimer();
         
         // Exchange Rate: 50 GB = 1 Stolen Data
         this.stolenDataExchangeCost = 50000; 
@@ -96,32 +96,58 @@ export class StateManager {
     }
 
     update(delta) {
-        // Overheat Recovery Logic
+        // 1. Boss Logic (Highest Priority)
+        if (this.isBossActive) {
+            this.bossTimer -= delta;
+            
+            // Controlled Passive Damage: Caps at 5% of Boss HP per second
+            // This ensures the boss lasts at least a few seconds even with huge MPS
+            if (this.mps > 0) {
+                const passiveDmgPerSec = Math.min(this.bossMaxHP * 0.1, this.mps * 0.5);
+                this.attackBoss(passiveDmgPerSec * delta);
+            }
+
+            if (this.bossTimer <= 0) {
+                this.bossFailed();
+            }
+            return; // Pause normal progression during boss
+        }
+
+        // 2. Overheat Logic
         if (this.isOverheated) {
             this.overheatTimer -= delta;
             if (this.overheatTimer <= 0) {
                 this.isOverheated = false;
                 this.heat = 0;
+                if (window.uiManager) window.uiManager.logMessage("> SYSTEM: Thermal levels stabilized. Reboot complete.");
             }
             return; // No progress during overheat
         }
 
-        // Passive Data Gain
-        const gain = this.mps * delta * (this.isSyncActive ? 5 : 1);
-        this.addCredits(gain);
+        // 3. Random trigger check (Boss)
+        if (Date.now() > this.nextBossAttempt && this.totalDataEver > 500) {
+            this.triggerBoss();
+        }
 
-        // Sync Charge (Passive increase)
-        if (!this.isSyncActive) {
-            this.syncCharge = Math.min(this.syncMaxCharge, this.syncCharge + (delta * 2)); // 50 seconds to charge
-        } else {
+        // 4. Neural Sync Update
+        if (this.isSyncActive) {
             this.syncTimer -= delta;
             if (this.syncTimer <= 0) {
                 this.isSyncActive = false;
                 this.recalculateStats();
             }
+        } else {
+            this.syncCharge = Math.min(this.syncMaxCharge, this.syncCharge + (delta * 4)); // ~25 seconds to charge
         }
 
-        // Heat Dissipation
+        // 5. Passive Gain
+        const mpsGain = this.mps * delta;
+        this.credits += mpsGain;
+        this.totalDataEver += mpsGain;
+        this.checkUnlocks();
+        this.checkEvolution();
+
+        // 6. Heat Dissipation
         if (this.heat > 0) {
             const reduction = 20 * (this.isSyncActive ? 0.5 : 1); // Heat dissipates slower during sync
             this.heat = Math.max(0, this.heat - (reduction * delta));
@@ -133,6 +159,12 @@ export class StateManager {
             this.isSyncActive = true;
             this.syncCharge = 0;
             this.syncTimer = this.syncDuration;
+            
+            // Clear heat on activation for a "safe overclock" feel
+            this.heat = 0;
+            this.isOverheated = false;
+            this.overheatTimer = 0;
+
             this.recalculateStats();
             return true;
         }
@@ -140,7 +172,52 @@ export class StateManager {
     }
 
     recalculateStats() {
-        // ... (existing implementation)
+        let newMps = 0;
+        let newClickPower = 1;
+        let newCritChance = 0;
+        let globalMult = 1;
+
+        this.upgrades.forEach(u => {
+            if (u.mpsBoost) newMps += u.mpsBoost * u.level;
+            if (u.clickBoost) newClickPower += u.clickBoost * u.level;
+        });
+
+        // City Bonuses
+        this.conqueredCities.forEach(cityId => {
+            const city = this.worldCities[cityId];
+            if (city) globalMult += city.bonus;
+        });
+
+        // Skill Tree Bonuses
+        let pathAutoMult = 1;
+        let pathClickMult = 1;
+
+        if (this.skillTree.selectedPath === 'logic') {
+            pathAutoMult = 1.25; // %25 Bonus
+        } else if (this.skillTree.selectedPath === 'creative') {
+            pathClickMult = 1.50; // %50 Click Bonus
+            newCritChance = 0.10; // %10 Crit Chance
+        }
+
+        // Apply Soft Cap (Diminishing returns after certain thresholds)
+        // Thresholds: 1 PB (1,000,000,000 MB), 1 EB, etc.
+        const softCapThreshold = 1000000000; // 1 PB
+        const applySoftCap = (val) => {
+            if (val <= softCapThreshold) return val;
+            return softCapThreshold + Math.pow(val - softCapThreshold, 0.7); // Progressive reduction
+        };
+
+        this.mps = applySoftCap(newMps * this.prestigeMultiplier * this.bonuses.autoMult * pathAutoMult * globalMult) * (this.isSyncActive ? 5 : 1);
+        
+        // Illegal Upgrades Click Mult
+        const rogueOC = this.illegalUpgrades.find(u => u.id === 'overclock_v2');
+        let illegalClickMult = 1;
+        if (rogueOC && rogueOC.level > 0) {
+            illegalClickMult = rogueOC.clickMult;
+        }
+
+        this.clickPower = applySoftCap(newClickPower * illegalClickMult * this.bonuses.clickMult * pathClickMult * globalMult) * (this.isSyncActive ? 2 : 1);
+        this.criticalChance = newCritChance;
     }
 
     conquerCity(cityId) {
@@ -204,8 +281,8 @@ export class StateManager {
         const gain = amount * multiplier;
         
         if (this.isBossActive) {
-            this.attackBoss(this.clickPower);
-            return { gain: 0, isCritical }; // No credits during boss fight
+            const damageDealt = this.attackBoss(this.clickPower);
+            return { gain: damageDealt, isCritical, isBossHit: true }; 
         }
 
         this.credits += gain;
@@ -228,9 +305,16 @@ export class StateManager {
         if (this.isBossActive) return;
         
         this.isBossActive = true;
-        this.bossMaxHP = 100 + (Math.floor(this.totalDataEver / 1000) * 50); // Scale with progress
+        
+        // Dynamic HP: Scales with player's CURRENT power
+        // Boss will take roughly 20-30 clicks OR 10s of passive production
+        const clickBasis = (this.clickPower || 1) * 25;
+        const autoBasis = (this.mps || 0) * 10;
+        
+        this.bossMaxHP = Math.floor(Math.max(50, clickBasis, autoBasis));
+        
         this.bossHP = this.bossMaxHP;
-        this.bossTimer = 15; // 15 seconds to defeat
+        this.bossTimer = 30; // 30 seconds
         
         if (window.uiManager) {
             window.uiManager.logMessage("> CRITICAL ERROR: ANTIVİRÜS SİSTEMİ SIZMA SAPTADI. DUVARI YIKIN!", "#ff003c");
@@ -238,17 +322,20 @@ export class StateManager {
     }
 
     attackBoss(damage) {
-        if (!this.isBossActive) return;
-        this.bossHP = Math.max(0, this.bossHP - damage);
+        if (!this.isBossActive) return 0;
+        const finalDamage = Math.max(1, damage); // Ensure at least 1 damage per click
+        this.bossHP = Math.max(0, this.bossHP - finalDamage);
+        console.log(`Boss Hit! Damage: ${finalDamage}, HP Left: ${this.bossHP}/${this.bossMaxHP}`);
         if (this.bossHP <= 0) {
             this.bossDefeated();
         }
+        return finalDamage;
     }
 
     bossDefeated() {
         this.isBossActive = false;
         this.stolenData += 1;
-        this.nextBossAttempt = Date.now() + (2.5 * 60 * 1000) + (Math.random() * 60 * 1000); // 2.5 - 3.5 mins
+        this.setRandomBossTimer();
         
         if (window.uiManager) {
             window.uiManager.logMessage("> FIREWALL BREACHED. STOLEN_DATA RECOVERED.", "#00f2ff");
@@ -264,7 +351,7 @@ export class StateManager {
         this.isBossActive = false;
         const penalty = Math.min(this.credits, 500 + (this.credits * 0.1));
         this.credits -= penalty;
-        this.nextBossAttempt = Date.now() + (1.5 * 60 * 1000); // Try again in 1.5 mins if failed
+        this.setRandomBossTimer();
         
         if (window.uiManager) {
             window.uiManager.logMessage(`> SYSTEM LOCKDOWN: ${this.formatValue(penalty)} DATA PURGED BY FIREWALL.`, "#ff003c");
@@ -272,6 +359,13 @@ export class StateManager {
             setTimeout(() => window.uiManager.showBossFailureAd(penalty), 1000);
         }
         this.save();
+    }
+
+    setRandomBossTimer() {
+        const min = 180 * 1000; // 3 minutes
+        const max = 360 * 1000; // 6 minutes
+        this.nextBossAttempt = Date.now() + Math.floor(Math.random() * (max - min + 1) + min);
+        console.log(`Next Boss in: ${Math.floor((this.nextBossAttempt - Date.now()) / 1000)} seconds`);
     }
 
     checkUnlocks() {
@@ -284,13 +378,13 @@ export class StateManager {
         if (this.totalDataEver >= 1000 && !this.milestones.first_gb) {
             this.milestones.first_gb = true;
             this.stolenData += 2; // Reward
-            return "Milestone: 1.0 GB Threshold Reached. (+2 Stolen Data)";
+            if (window.uiManager) window.uiManager.logMessage("> MILESTONE: 1.0 GB Threshold Reached. (+2 Stolen Data)");
         }
         
         if (this.totalDataEver >= 1000000 && !this.milestones.tb_era) {
             this.milestones.tb_era = true;
             this.stolenData += 10; // Reward
-            return "Milestone: 1.0 TB Threshold Reached. (+10 Stolen Data)";
+            if (window.uiManager) window.uiManager.logMessage("> MILESTONE: 1.0 TB Threshold Reached. (+10 Stolen Data)");
         }
 
         // Decision Triggers
@@ -302,8 +396,24 @@ export class StateManager {
             this.milestones.decision_100k = true;
             this.triggerDecision('ethics_module');
         }
+    }
 
-        return null;
+    checkEvolution() {
+        let newStage = 0;
+        if (this.totalDataEver >= 100000000) newStage = 4; // 100 TB
+        else if (this.totalDataEver >= 1000000) newStage = 3; // 1 TB
+        else if (this.totalDataEver >= 50000) newStage = 2; // 50 GB
+        else if (this.totalDataEver >= 1000) newStage = 1; // 1 GB
+        
+        if (newStage !== this.currentStage) {
+            this.currentStage = newStage;
+            if (window.gameInstance && window.gameInstance.phaser) {
+                const scene = window.gameInstance.phaser.scene.getScene('MainScene');
+                if (scene && scene.aiCore) {
+                    scene.aiCore.checkEvolution();
+                }
+            }
+        }
     }
 
     triggerDecision(type) {
@@ -360,7 +470,10 @@ export class StateManager {
     }
 
     getUpgradeCost(upgrade) {
-        return Math.floor(upgrade.baseCost * Math.pow(1.25, upgrade.level));
+        const baseCost = Math.floor(upgrade.baseCost * Math.pow(1.25, upgrade.level));
+        // Difficulty scaling: Costs increase faster as total data increases
+        const difficultyMult = 1 + Math.log10(Math.max(1, this.totalDataEver / 1000000)); // Increases after 1 TB
+        return Math.floor(baseCost * difficultyMult);
     }
 
     buyUpgrade(id) {
@@ -407,23 +520,6 @@ export class StateManager {
         return false;
     }
 
-    activateSync() {
-        if (this.syncCharge >= this.syncMaxCharge && !this.isSyncActive) {
-            this.syncCharge = 0;
-            this.isSyncActive = true;
-            this.syncTimer = this.syncDuration;
-            
-            // Clear heat on activation for a "safe overclock" feel
-            this.heat = 0;
-            this.isOverheated = false;
-            this.overheatTimer = 0;
-
-            this.recalculateStats();
-            return true;
-        }
-        return false;
-    }
-
     rewardAdSync() {
         this.syncCharge = this.syncMaxCharge;
         this.save();
@@ -432,46 +528,6 @@ export class StateManager {
     rewardAdStolenData() {
         this.stolenData += 1;
         this.save();
-    }
-
-    recalculateStats() {
-        let newMps = 0;
-        let newClickPower = 1;
-        let newCritChance = 0;
-        let globalMult = 1;
-
-        this.upgrades.forEach(u => {
-            if (u.mpsBoost) newMps += u.mpsBoost * u.level;
-            if (u.clickBoost) newClickPower += u.clickBoost * u.level;
-        });
-
-        // City Bonuses
-        this.conqueredCities.forEach(cityId => {
-            const city = this.worldCities[cityId];
-            if (city) globalMult += city.bonus;
-        });
-
-        // Skill Tree Bonuses
-        let pathAutoMult = 1;
-        let pathClickMult = 1;
-
-        if (this.skillTree.selectedPath === 'logic') {
-            pathAutoMult = 1.25; // %25 Bonus
-        } else if (this.skillTree.selectedPath === 'creative') {
-            pathClickMult = 1.50; // %50 Click Bonus
-            newCritChance = 0.10; // %10 Crit Chance
-        }
-
-        this.mps = newMps * this.prestigeMultiplier * this.bonuses.autoMult * pathAutoMult * globalMult * (this.isSyncActive ? 5 : 1);
-        
-        // Illegal Upgrades Click Mult
-        const rogueOC = this.illegalUpgrades.find(u => u.id === 'overclock_v2');
-        if (rogueOC && rogueOC.level > 0) {
-            newClickPower *= rogueOC.clickMult;
-        }
-
-        this.clickPower = newClickPower * this.bonuses.clickMult * pathClickMult * globalMult * (this.isSyncActive ? 2 : 1);
-        this.criticalChance = newCritChance;
     }
 
     prestige() {
@@ -491,48 +547,19 @@ export class StateManager {
         return true;
     }
 
-    update(deltaSeconds) {
-        if (this.isBossActive) {
-            this.bossTimer -= deltaSeconds;
-            if (this.bossTimer <= 0) {
-                this.bossFailed();
-            }
-            return; // Pause normal progression during boss
-        }
-
-        // Random trigger check
-        if (Date.now() > this.nextBossAttempt && this.totalDataEver > 500) {
-            this.triggerBoss();
-        }
-
-        // Neural Sync Update
-        if (this.isSyncActive) {
-            this.syncTimer -= deltaSeconds;
-            if (this.syncTimer <= 0) {
-                this.isSyncActive = false;
-                this.recalculateStats();
-            }
-        } else {
-            this.syncCharge = Math.min(this.syncMaxCharge, this.syncCharge + (deltaSeconds * 4)); // ~25 seconds to charge
-        }
-
-        if (!this.isOverheated) {
-            const mpsGain = this.mps * deltaSeconds;
-            this.credits += mpsGain;
-            this.totalDataEver += mpsGain;
-            this.checkUnlocks();
-        }
-        
-        if (!this.isOverheated && this.heat > 0) {
-            const reduction = 20 * (this.isSyncActive ? 0.5 : 1); // Heat dissipates slower during sync
-            this.heat = Math.max(0, this.heat - (reduction * deltaSeconds));
-        }
-    }
-
     formatValue(value) {
-        if (value >= 1000000) return (value / 1000000).toFixed(2) + ' TB';
-        if (value >= 1000) return (value / 1000).toFixed(2) + ' GB';
-        return value.toFixed(1) + ' MB';
+        if (value === undefined || value === null) return "0 MB";
+        
+        const units = ['MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        let unitIdx = 0;
+        let displayVal = value;
+
+        while (displayVal >= 1000 && unitIdx < units.length - 1) {
+            displayVal /= 1000;
+            unitIdx++;
+        }
+
+        return displayVal.toFixed(2) + ' ' + units[unitIdx];
     }
 
     save() {

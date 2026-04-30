@@ -284,16 +284,25 @@ export class UIManager {
     updateBossTerminalUI() {
         if (this.state.isBossActive) {
             this.els.bossTerminalUI.classList.remove('hidden');
-            // Inverse HP to show Thermal Load increasing
-            const heatPercent = 100 - ((this.state.bossHP / this.state.bossMaxHP) * 100);
-            this.els.bossHPBar.style.width = `${heatPercent}%`;
+            // Standard HP Bar: 100% to 0%
+            const hpPercent = (this.state.bossHP / this.state.bossMaxHP) * 100;
+            const oldWidth = this.els.bossHPBar.style.width;
+            this.els.bossHPBar.style.width = `${hpPercent}%`;
             this.els.bossTimerDisplay.innerText = `${this.state.bossTimer.toFixed(2)}s`;
+            
+            // Trigger shake on hit
+            if (oldWidth !== `${hpPercent}%`) {
+                this.els.bossTerminalUI.classList.add('boss-hit-shake');
+                setTimeout(() => this.els.bossTerminalUI.classList.remove('boss-hit-shake'), 100);
+            }
             
             // Critical warning color
             if (this.state.bossTimer < 5) {
-                this.els.bossTimerDisplay.classList.add('text-white', 'scale-110');
+                this.els.bossTimerDisplay.style.color = '#ff003c';
+                this.els.bossTimerDisplay.classList.add('scale-110');
             } else {
-                this.els.bossTimerDisplay.classList.remove('text-white', 'scale-110');
+                this.els.bossTimerDisplay.style.color = 'white';
+                this.els.bossTimerDisplay.classList.remove('scale-110');
             }
         } else {
             this.els.bossTerminalUI.classList.add('hidden');

@@ -27,6 +27,11 @@ Oyun, **Modüler JavaScript** ve **Nesne Yönelimli Programlama (OOP)** prensipl
 ### Neural Ascension (Prestige):
 Büyük miktarda veri (1.0 GB+) biriktirdiğinizde, bilincinizi "yükseltebilirsiniz". Bu işlem her şeyi sıfırlar ancak kalıcı bir çarpan (multiplier) sağlar.
 
+### ⚖️ 2.1. Dengeleme (Balancing & Soft Cap):
+Oyunun ilerleyen aşamalarında veri üretiminin kontrolden çıkmasını önlemek için iki temel mekanizma eklenmiştir:
+- **Soft Cap (Yumuşak Limit):** 1 PB (Petabyte) eşiğinden sonra veri üretimi ve tıklama gücü azalan verimler (diminishing returns) yasasına tabi olur.
+- **Dinamik Zorluk:** Toplam veri miktarı arttıkça (özellikle 1 TB sonrası), yükseltme maliyetleri logaritmik olarak daha hızlı artar.
+
 ---
 
 ## 🌀 3. AI Görsel Evrimi (Visual Evolution)
@@ -54,6 +59,14 @@ Belirli veri eşiklerinde (10K, 100K) AI size felsefi veya teknik sorular sorar.
 
 ## 💾 5. Veri Kayıt Sistemi
 Oyun, ilerlemenizi tarayıcının `localStorage` alanına otomatik olarak kaydeder. Ayrıca ayarlar kısmından kayıt dosyanızı dışa aktarabilir (Export) veya içe aktarabilirsiniz (Import).
+
+---
+
+## 📱 6. Mobil Uyumluluk (Mobile Optimization)
+Oyun, dikey ve yatay ekranlar için tam duyarlı (responsive) bir yapıya sahiptir:
+- **Alt Panel Sistemi:** Mobilde market, arşiv ve ayarlar panelleri ekranın altından yukarı doğru açılan "bottom sheet" formuna dönüşür.
+- **Dinamik HUD:** Ekran boyutuna göre metin boyutları ve boşluklar otomatik olarak ayarlanır.
+- **Dokunmatik Dostu:** Tüm butonlar ve etkileşim alanları mobil cihazlar için optimize edilmiştir.
 
 ---
 *DeepMind // Agentic Core v1.0.4*

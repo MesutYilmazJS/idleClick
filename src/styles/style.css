@@ -151,7 +151,19 @@ canvas { display: block; }
 .boot-line { opacity: 0; transform: translateY(5px); transition: all 0.2s ease; }
 .boot-line-active { opacity: 1; transform: translateY(0); }
 
-/* World Map Animations */
+.boss-hit-shake {
+    animation: hit-shake 0.1s ease-in-out;
+}
+
+@keyframes hit-shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+    100% { transform: translateX(0); }
+}
+
+/* Animations */
 .map-node-glow {
     box-shadow: 0 0 10px currentColor;
     animation: pulse-node 2s infinite ease-in-out;
@@ -202,9 +214,35 @@ canvas { display: block; }
     }
     
     .panel {
-        width: 95% !important;
-        bottom: 80px !important;
-        height: 60vh !important;
+        width: 100% !important;
+        height: 85vh !important;
+        bottom: 0 !important;
+        top: auto !important;
+        transform: translate(-50%, 0) !important;
+        border-radius: 20px 20px 0 0 !important;
+        border-bottom: 0 !important;
+    }
+
+    .panel-hidden-center {
+        transform: translate(-50%, 100%) !important;
+        opacity: 0;
+    }
+
+    /* Smaller text for HUD on tiny screens */
+    @media (max-width: 380px) {
+        #credits-display, #heat-percent {
+            font-size: 1.1rem !important;
+        }
+    }
+
+    /* Hide decorative labels on small mobile */
+    .md\:tracking-\[0\.3em\] {
+        letter-spacing: 0.1em !important;
+    }
+
+    /* Terminal height adjustment */
+    .h-48 {
+        height: 120px !important;
     }
 }
 

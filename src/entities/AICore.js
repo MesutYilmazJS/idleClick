@@ -1,6 +1,6 @@
 /**
- * AICore: Neural Network Evolution Entity.
- * Transforms from a single Neuron to a Singularity Web.
+ * AICore: Cinematic "Jarvis vs Ultron" Style.
+ * Simplified Input: No internal listeners, all handled by MainScene for reliability.
  */
 export class AICore {
     constructor(scene, x, y, size) {
@@ -9,314 +9,197 @@ export class AICore {
         this.x = x;
         this.y = y;
         this.baseSize = size;
-        this.currentStage = 0;
+        this.currentStage = -1;
+        this.timer = 0;
         
-        // Layers
-        this.graphics = scene.add.graphics();
+        // Layers for Depth
         this.container = scene.add.container(x, y);
-        this.container.add(this.graphics);
+        this.nebulaGraphics = scene.add.graphics().setBlendMode(Phaser.BlendModes.SCREEN).setAlpha(0.2);
+        this.capillaryGraphics = scene.add.graphics().setAlpha(0.4);
+        this.arcGraphics = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+        this.container.add([this.nebulaGraphics, this.capillaryGraphics, this.arcGraphics]);
 
-        // Core Label
-        this.label = scene.add.text(0, size/2 + 40, 'NEURAL_CORE', {
-            fontFamily: 'JetBrains Mono', fontSize: '14px', color: '#00FF41', fontStyle: 'bold'
-        }).setOrigin(0.5).setAlpha(0.6);
-        this.container.add(this.label);
-
-        // State Data
         this.nodes = [];
         this.connections = [];
-        this.packets = [];
+        this.pulseWaves = [];
+        this.lightningBolts = [];
         
         this.setupParticles();
-        this.setupEvents();
         this.checkEvolution(true);
     }
 
     setupParticles() {
-        // Pixel explosion for transitions and clicks
-        if (!this.scene.textures.exists('pixel')) {
+        if (!this.scene.textures.exists('data-spark')) {
             const g = this.scene.make.graphics({ x: 0, y: 0, add: false });
-            g.fillStyle(0x00FF41, 1);
-            g.fillRect(0, 0, 4, 4);
-            g.generateTexture('pixel', 4, 4);
+            g.fillStyle(0xffffff, 1);
+            g.fillRect(0, 0, 2, 2);
+            g.generateTexture('data-spark', 2, 2);
         }
-
-        this.pixelEmitter = this.scene.add.particles(0, 0, 'pixel', {
+        this.sparkEmitter = this.scene.add.particles(0, 0, 'data-spark', {
             speed: { min: 100, max: 400 },
             scale: { start: 1, end: 0 },
             alpha: { start: 1, end: 0 },
-            lifespan: 800,
-            emitting: false
+            lifespan: 400,
+            emitting: false,
+            blendMode: 'ADD'
         });
     }
 
-    setupEvents() {
-        this.hitArea = this.scene.add.circle(this.x, this.y, this.baseSize / 1.5, 0xffffff, 0)
-            .setInteractive({ useHandCursor: true });
+    checkEvolution(isInit = false) {
+        const stage = this.engine.state.currentStage || 0;
+        if (stage !== this.currentStage || isInit) {
+            this.currentStage = stage;
+            this.nodes = [];
+            this.connections = [];
+            this.buildNetwork();
+            if (!isInit) this.scene.cameras.main.flash(300, 255, 255, 255, 0.05);
+        }
+    }
 
-        this.hitArea.on('pointerdown', (pointer) => {
-            if (this.engine.state.isOverheated) {
-                this.scene.cameras.main.shake(100, 0.005);
-                this.showFloatingText(pointer.x, pointer.y, 'OVERHEAT', '#ff0000');
-                return;
+    buildNetwork() {
+        const count = 10 + (this.currentStage * 12);
+        this.addNode(0, 0, 10, true); 
+
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const dist = this.baseSize * (0.4 + Math.random() * 0.8);
+            this.addNode(Math.cos(angle) * dist, Math.sin(angle) * dist, 3);
+            this.connections.push({ from: 0, to: i + 1, jitter: 3 + Math.random() * 4 });
+        }
+
+        if (this.currentStage >= 1) {
+            const interCount = this.currentStage * 15;
+            for (let i = 0; i < interCount; i++) {
+                this.connections.push({
+                    from: Phaser.Math.Between(1, this.nodes.length - 1),
+                    to: Phaser.Math.Between(1, this.nodes.length - 1),
+                    jitter: 2
+                });
             }
-
-            const { gain, isCritical } = this.engine.state.addCredits(this.engine.state.clickPower);
-            this.engine.state.addHeat(this.engine.state.heatPerClick);
-            this.engine.state.totalClicks++;
-            
-            // StateManager's formatValue already includes the unit (MB, GB, TB)
-            const formattedGain = `+${this.engine.state.formatValue(gain)}`;
-            const textColor = isCritical ? '#ffffff' : (this.engine.state.skillTree.selectedPath === 'creative' ? '#ff003c' : '#00FF41');
-            
-            this.showFloatingText(pointer.x, pointer.y, formattedGain, textColor, isCritical);
-
-            if (isCritical) {
-                this.showCriticalEffect(pointer.x, pointer.y);
-            }
-            
-            this.onInteraction(pointer);
-        });
-    }
-
-    showFloatingText(x, y, message, color, isCritical = false) {
-        const fontSize = isCritical ? '32px' : '20px';
-        const text = this.scene.add.text(x, y, message, {
-            fontFamily: 'JetBrains Mono',
-            fontSize: fontSize,
-            color: color,
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 4
-        }).setOrigin(0.5).setDepth(300);
-
-        // Random horizontal drift
-        const driftX = (Math.random() - 0.5) * 40;
-
-        this.scene.tweens.add({
-            targets: text,
-            x: x + driftX,
-            y: y - 100,
-            alpha: 0,
-            duration: 1000,
-            ease: 'Cubic.easeOut',
-            onComplete: () => text.destroy()
-        });
-    }
-
-    showCriticalEffect(x, y) {
-        const color = this.getPathColor();
-        const text = this.scene.add.text(x, y, 'CRITICAL!', {
-            fontFamily: 'JetBrains Mono', fontSize: '24px', color: '#FFFFFF', fontStyle: 'bold'
-        }).setOrigin(0.5).setStroke(color, 4);
-
-        this.scene.tweens.add({
-            targets: text,
-            y: y - 100,
-            alpha: 0,
-            duration: 800,
-            ease: 'Cubic.easeOut',
-            onComplete: () => text.destroy()
-        });
-
-        this.pixelEmitter.emitParticleAt(x, y, 30);
-    }
-
-    getPathColor() {
-        const path = this.engine.state.skillTree.selectedPath;
-        if (path === 'logic') return 0x00f2ff;
-        if (path === 'creative') return 0xff003c;
-        return 0x00FF41;
-    }
-
-    checkEvolution(isInitial = false) {
-        const data = this.engine.state.totalDataEver;
-        let nextStage = 1;
-        if (data >= 1000000) nextStage = 3;
-        else if (data >= 1000) nextStage = 2;
-
-        if (nextStage !== this.currentStage) {
-            this.transition(nextStage, isInitial);
         }
     }
 
-    transition(stage, isInitial) {
-        if (!isInitial) {
-            // Particle explosion on old nodes
-            this.nodes.forEach(n => {
-                this.pixelEmitter.emitParticleAt(this.x + n.x, this.y + n.y, 10);
-            });
-            this.scene.cameras.main.flash(400, 0, 255, 65, 0.2);
-        }
-
-        this.currentStage = stage;
-        this.nodes = [];
-        this.connections = [];
-        this.packets = [];
-
-        if (stage === 1) this.createStage1();
-        else if (stage === 2) this.createStage2();
-        else if (stage === 3) this.createStage3();
-
-        if (!isInitial) {
-            this.container.setScale(0).setAlpha(0);
-            this.scene.tweens.add({
-                targets: this.container,
-                scale: 1, alpha: 1, duration: 1000, ease: 'Elastic.easeOut'
-            });
-        }
-    }
-
-    createStage1() {
-        // Central Node
-        this.nodes.push({ x: 0, y: 0, size: 40, pulse: 1 });
-        // 3-4 Satellites
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
-            const dist = this.baseSize / 3;
-            this.nodes.push({ 
-                x: Math.cos(angle) * dist, 
-                y: Math.sin(angle) * dist, 
-                size: 10, 
-                pulse: 1 
-            });
-            this.connections.push({ from: 0, to: i + 1 });
-        }
-    }
-
-    createStage2() {
-        // 12 nodes in a mesh
-        for (let i = 0; i < 12; i++) {
-            this.nodes.push({
-                x: Phaser.Math.Between(-this.baseSize/2, this.baseSize/2),
-                y: Phaser.Math.Between(-this.baseSize/2, this.baseSize/2),
-                size: 12,
-                pulse: 1
-            });
-        }
-        // Connect each to 2-3 neighbors
-        this.nodes.forEach((n, i) => {
-            const targets = [ (i+1)%12, (i+3)%12 ];
-            targets.forEach(t => this.connections.push({ from: i, to: t }));
-        });
-
-        // Initialize some packets
-        for (let i = 0; i < 8; i++) this.spawnPacket();
-    }
-
-    createStage3() {
-        // High density web
-        for (let i = 0; i < 40; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * (this.baseSize / 1.5);
-            this.nodes.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, size: 8, pulse: 1 });
-        }
-        // Complex connections
-        for (let i = 0; i < 80; i++) {
-            this.connections.push({ 
-                from: Phaser.Math.Between(0, 39), 
-                to: Phaser.Math.Between(0, 39) 
-            });
-        }
-        for (let i = 0; i < 20; i++) this.spawnPacket();
-    }
-
-    spawnPacket() {
-        if (this.connections.length === 0) return;
-        const conn = Phaser.Utils.Array.GetRandom(this.connections);
-        this.packets.push({
-            fromNode: this.nodes[conn.from],
-            toNode: this.nodes[conn.to],
-            progress: 0,
-            speed: 0.01 + Math.random() * 0.02
-        });
-    }
-
-    onInteraction(pointer) {
-        // Visual feedback based on stage
-        if (this.currentStage === 1) {
-            this.scene.tweens.add({ targets: this.nodes[0], pulse: 1.5, duration: 100, yoyo: true });
-        } else if (this.currentStage === 2) {
-            this.fireNetwork();
-        } else if (this.currentStage === 3) {
-            this.scene.cameras.main.shake(150, 0.003);
-            this.pixelEmitter.emitParticleAt(pointer.x, pointer.y, 20);
-            this.drawShockwave(pointer.x - this.x, pointer.y - this.y);
-        }
-    }
-
-    fireNetwork() {
-        this.nodes.forEach(n => {
-            this.scene.tweens.add({ targets: n, pulse: 2, duration: 150, yoyo: true });
-        });
-    }
-
-    drawShockwave(x, y) {
-        const circle = this.scene.add.circle(this.x + x, this.y + y, 10, 0x00FF41, 0.2);
-        circle.setStrokeStyle(2, 0x00FF41, 0.8);
-        this.scene.tweens.add({
-            targets: circle,
-            radius: 300, alpha: 0, duration: 600,
-            onComplete: () => circle.destroy()
+    addNode(x, y, size, isCore = false) {
+        this.nodes.push({
+            x, y, baseX: x, baseY: y, size, isCore,
+            flicker: Math.random(),
+            driftPhase: Math.random() * Math.PI * 2
         });
     }
 
     update(time, delta) {
-        this.checkEvolution();
-        this.graphics.clear();
+        const path = this.engine.state.skillTree.selectedPath;
+        const color = path === 'creative' ? 0xff4d00 : 0x00d2ff; 
+        this.timer += delta * 0.001;
 
-        if (this.currentStage === 3) {
-            this.container.rotation += 0.002;
-        }
-
-        const themeColor = this.engine.state.isBossActive ? 0xff003c : this.getPathColor();
-        const isOverheated = this.engine.state.isOverheated;
-
-        // 1. Draw Connections (Synapses)
-        this.connections.forEach(c => {
-            const n1 = this.nodes[c.from];
-            const n2 = this.nodes[c.to];
-            const alpha = this.currentStage === 1 ? 0.2 : 0.4;
-            this.graphics.lineStyle(1, isOverheated ? 0xff0000 : themeColor, alpha);
-            this.graphics.beginPath();
-            this.graphics.moveTo(n1.x, n1.y);
-            this.graphics.lineTo(n2.x, n2.y);
-            this.graphics.strokePath();
-        });
-
-        // 2. Draw Data Packets
-        this.packets.forEach((p, index) => {
-            p.progress += p.speed;
-            if (p.progress >= 1) {
-                this.packets.splice(index, 1);
-                this.spawnPacket();
-                return;
+        this.nodes.forEach(n => {
+            if (!n.isCore) {
+                n.x = n.baseX + Math.sin(this.timer * 3 + n.driftPhase) * 5;
+                n.y = n.baseY + Math.cos(this.timer * 2.5 + n.driftPhase) * 5;
             }
-            const px = Phaser.Math.Linear(p.fromNode.x, p.toNode.x, p.progress);
-            const py = Phaser.Math.Linear(p.fromNode.y, p.toNode.y, p.progress);
-            this.graphics.fillStyle(isOverheated ? 0xff0000 : themeColor, 1);
-            this.graphics.fillCircle(px, py, 3);
+            n.flicker = Math.random();
         });
 
-        // 3. Draw Nodes (Neurons)
-        this.nodes.forEach((n, i) => {
-            const color = isOverheated ? 0xff0000 : themeColor;
-            const alpha = (i === 0 && this.currentStage === 1) ? 0.8 : 0.4;
-            
-            this.graphics.fillStyle(color, alpha);
-            this.graphics.fillCircle(n.x, n.y, n.size * n.pulse);
-            
-            this.graphics.lineStyle(2, color, 1);
-            this.graphics.strokeCircle(n.x, n.y, n.size * n.pulse);
-
-            // Subtle breathing
-            n.pulse = 1 + Math.sin(time / 500 + i) * 0.05;
+        this.pulseWaves = this.pulseWaves.filter(w => {
+            w.radius += w.speed * delta;
+            w.alpha -= 0.05 * delta;
+            return w.alpha > 0;
         });
 
-        let labelColor = isOverheated ? '#ff0000' : (this.engine.state.skillTree.selectedPath === 'logic' ? '#00f2ff' : (this.engine.state.skillTree.selectedPath === 'creative' ? '#ff003c' : '#00FF41'));
-        if (this.engine.state.isBossActive) labelColor = '#ff003c';
+        this.lightningBolts = this.lightningBolts.filter(b => {
+            b.life -= 0.1 * delta;
+            return b.life > 0;
+        });
 
-        this.label.setText(isOverheated ? 'SYSTEM_OVERHEAT' : (this.engine.state.isBossActive ? 'FIREWALL_BREACH_DETECTED' : `NEURAL_STAGE_${this.currentStage}`));
-        this.label.setColor(labelColor);
+        this.draw(color);
+    }
+
+    draw(color) {
+        this.nebulaGraphics.clear();
+        this.capillaryGraphics.clear();
+        this.arcGraphics.clear();
+
+        this.nebulaGraphics.fillStyle(color, 0.1);
+        this.nebulaGraphics.fillCircle(0, 0, this.baseSize * 1.5);
+
+        this.capillaryGraphics.lineStyle(1, color, 0.1);
+        this.connections.forEach(conn => {
+            const n1 = this.nodes[conn.from];
+            const n2 = this.nodes[conn.to];
+            this.capillaryGraphics.beginPath();
+            this.capillaryGraphics.moveTo(n1.x, n1.y);
+            this.capillaryGraphics.lineTo(n2.x, n2.y);
+            this.capillaryGraphics.strokePath();
+        });
+
+        this.connections.forEach(conn => {
+            const n1 = this.nodes[conn.from];
+            const n2 = this.nodes[conn.to];
+            if (Math.random() > 0.4) {
+                this.arcGraphics.lineStyle(1, color, 0.2 + Math.random() * 0.4);
+                this.drawJaggedLine(this.arcGraphics, n1, n2, conn.jitter);
+            }
+        });
+
+        this.lightningBolts.forEach(bolt => {
+            const n1 = this.nodes[bolt.conn.from];
+            const n2 = this.nodes[bolt.conn.to];
+            this.arcGraphics.lineStyle(2, 0xffffff, bolt.life);
+            this.drawJaggedLine(this.arcGraphics, n1, n2, 8);
+        });
+
+        this.nodes.forEach(n => {
+            const pulse = n.size * (0.8 + n.flicker * 0.4);
+            this.arcGraphics.fillStyle(color, n.isCore ? 1 : 0.7);
+            this.arcGraphics.fillCircle(n.x, n.y, pulse);
+            if (n.isCore) {
+                this.arcGraphics.fillStyle(0xffffff, 0.3);
+                this.arcGraphics.fillCircle(n.x, n.y, pulse * 2);
+            }
+        });
+
+        this.pulseWaves.forEach(w => {
+            this.arcGraphics.lineStyle(2, color, w.alpha);
+            this.arcGraphics.strokeCircle(w.x, w.y, w.radius);
+        });
+    }
+
+    drawJaggedLine(graphics, n1, n2, jitter) {
+        const dist = Phaser.Math.Distance.Between(n1.x, n1.y, n2.x, n2.y);
+        const segments = Math.max(3, Math.floor(dist / 10));
+        graphics.beginPath();
+        graphics.moveTo(n1.x, n1.y);
+        for (let i = 1; i < segments; i++) {
+            const t = i / segments;
+            graphics.lineTo(
+                Phaser.Math.Linear(n1.x, n2.x, t) + (Math.random() - 0.5) * jitter * 3,
+                Phaser.Math.Linear(n1.y, n2.y, t) + (Math.random() - 0.5) * jitter * 3
+            );
+        }
+        graphics.lineTo(n2.x, n2.y);
+        graphics.strokePath();
+    }
+
+    onInteraction(pointer) {
+        this.sparkEmitter.explode(10, pointer.x, pointer.y);
+        if (Math.random() > 0.8) this.scene.cameras.main.shake(100, 0.001);
+        
+        // Trigger a bolt for visual feedback
+        if (this.connections.length > 0) {
+            this.lightningBolts.push({
+                conn: Phaser.Utils.Array.GetRandom(this.connections),
+                life: 1.0
+            });
+        }
+    }
+
+    showFloatingText(x, y, message, color) {
+        const text = this.scene.add.text(x, y, message, {
+            fontFamily: 'JetBrains Mono', fontSize: '20px', color: color, fontStyle: 'bold',
+            stroke: '#000000', strokeThickness: 3
+        }).setOrigin(0.5).setDepth(1000);
+        this.scene.tweens.add({
+            targets: text, y: y - 100, alpha: 0, duration: 800, onComplete: () => text.destroy()
+        });
     }
 }
