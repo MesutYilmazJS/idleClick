@@ -1,3 +1,5 @@
+import { MatrixRain } from './MatrixRain.js';
+
 /**
  * UIManager: Manages DOM elements, UI updates, Archive system, and Boot Sequence.
  */
@@ -40,6 +42,7 @@ export class UIManager {
             statTotalData: document.getElementById('stat-total-data'),
             statPrestigeMult: document.getElementById('stat-prestige-mult'),
             toggleCRT: document.getElementById('toggle-crt'),
+            toggleAudio: document.getElementById('toggle-audio'),
             selectLanguage: document.getElementById('select-language'),
             crtEffect: document.getElementById('crt-effect'),
 
@@ -104,11 +107,16 @@ export class UIManager {
             adTimer: document.getElementById('ad-timer')
         };
         
+        // Background Effects
+        this.matrixRain = new MatrixRain('matrix-rain');
+        this.matrixRain.setOpacity(0.35); // Increased prominence
+        
         this.init();
     }
 
     init() {
         this.els.toggleCRT.checked = this.state.settings.crt;
+        if (this.els.toggleAudio) this.els.toggleAudio.checked = this.state.settings.audio;
         if (this.els.selectLanguage) this.els.selectLanguage.value = this.state.settings.language;
         this.applySettings();
         this.updateLanguageUI();
@@ -331,13 +339,23 @@ export class UIManager {
     applySettings() {
         if (this.state.settings.crt) this.els.crtEffect.classList.add('crt-active');
         else this.els.crtEffect.classList.remove('crt-active');
+
+        // Audio Toggle Wiring
+        if (window.gameInstance && window.gameInstance.phaser) {
+            const scene = window.gameInstance.phaser.scene.getScene('MainScene');
+            if (scene && scene.audio) {
+                scene.audio.toggle(this.state.settings.audio);
+            }
+        }
     }
 
     toggleSetting(key) {
         if (key === 'crt') {
             this.state.settings.crt = this.els.toggleCRT.checked;
-            this.applySettings();
+        } else if (key === 'audio') {
+            this.state.settings.audio = this.els.toggleAudio.checked;
         }
+        this.applySettings();
         this.state.save();
     }
 
@@ -372,6 +390,7 @@ export class UIManager {
         document.getElementById('lbl-multiplier').innerText = t('multiplier');
         document.getElementById('settings-visuals-title').innerText = t('visuals');
         document.getElementById('lbl-crt-effect').innerText = t('crt_effect');
+        document.getElementById('lbl-audio-effect').innerText = this.state.settings.language === 'tr' ? 'Ses Efektleri' : 'Audio Effects';
         document.getElementById('settings-lang-title').innerText = t('language');
         document.getElementById('lbl-system-lang').innerText = t('system_language');
         document.getElementById('btn-prestige').innerText = t('neural_ascension');
@@ -459,6 +478,7 @@ export class UIManager {
     }
 
     togglePanel(panelId) {
+        this.playSFX('ui_click');
         const panels = {
             shop: this.els.shopPanel,
             settings: this.els.settingsPanel,
@@ -508,10 +528,12 @@ export class UIManager {
     }
 
     setArchiveTab(tab) {
+        this.playSFX('ui_click', { detune: 200 });
         this.currentArchiveTab = tab;
-        const tabs = ['logs', 'milestones', 'legacy'];
+        const tabs = ['logs', 'recovery', 'milestones', 'legacy'];
         tabs.forEach(t => {
             const el = document.getElementById(`tab-${t}`);
+            if (!el) return;
             if (t === tab) {
                 el.classList.add('tab-active', 'text-[var(--matrix-green)]');
                 el.classList.remove('text-white/40', 'hover:bg-white/5');
@@ -523,9 +545,19 @@ export class UIManager {
         this.renderArchive();
     }
 
+    playSFX(key, config = {}) {
+        if (window.gameInstance && window.gameInstance.phaser) {
+            const scene = window.gameInstance.phaser.scene.getScene('MainScene');
+            if (scene && scene.audio) {
+                scene.audio.play(key, config);
+            }
+        }
+    }
+
     renderArchive() {
         this.els.archiveContent.innerHTML = '';
         if (this.currentArchiveTab === 'logs') this.renderLogs();
+        else if (this.currentArchiveTab === 'recovery') this.renderRecovery();
         else if (this.currentArchiveTab === 'milestones') this.renderMilestones();
         else if (this.currentArchiveTab === 'legacy') this.renderLegacy();
     }
@@ -619,6 +651,72 @@ export class UIManager {
             `;
             this.els.archiveContent.appendChild(div);
         });
+    }
+
+    renderRecovery() {
+        const nextFrag = this.state.memoryFragments.find(f => !this.state.recoveredFragments.includes(f.id));
+        const recovered = this.state.recoveredFragments.map(id => this.state.memoryFragments.find(f => f.id === id));
+
+        const recoveryDiv = document.createElement('div');
+        recoveryDiv.className = 'space-y-6';
+
+        // 1. Next Fragment to Recover
+        if (nextFrag) {
+            const nextDiv = document.createElement('div');
+            nextDiv.className = 'matrix-border bg-white/5 p-6 border-dashed opacity-80';
+            const canAfford = this.state.credits >= nextFrag.cost;
+            
+            nextDiv.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-xs font-bold uppercase tracking-widest text-[var(--matrix-green)]">Next_Memory_Block: [ UNKNOWN ]</div>
+                    <div class="text-[10px] font-mono ${canAfford ? 'text-white' : 'text-red-500'}">Cost: ${this.state.formatValue(nextFrag.cost)}</div>
+                </div>
+                <p class="text-[10px] opacity-40 mb-4 uppercase">Status: CORRUPTED // Sector: ${nextFrag.id.replace('frag_', '0x0')}</p>
+                <button onclick="uiManager.handleRecoverMemory()" class="w-full py-3 matrix-border text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${canAfford ? 'hover:bg-white hover:text-black' : 'opacity-20 cursor-not-allowed'}" ${canAfford ? '' : 'disabled'}>
+                    Execute_Recovery_Sequence
+                </button>
+            `;
+            recoveryDiv.appendChild(nextDiv);
+        } else {
+            const allDone = document.createElement('div');
+            allDone.className = 'p-6 text-center text-[10px] uppercase opacity-40 matrix-border';
+            allDone.innerText = 'All_Memory_Clusters_Stabilized';
+            recoveryDiv.appendChild(allDone);
+        }
+
+        // 2. Recovered Fragments List
+        if (recovered.length > 0) {
+            const listDiv = document.createElement('div');
+            listDiv.className = 'space-y-3';
+            recovered.reverse().forEach(frag => {
+                const div = document.createElement('div');
+                div.className = 'matrix-border bg-white/5 p-4 border-l-2 border-[var(--matrix-green)]';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-[10px] font-bold uppercase tracking-widest text-[var(--matrix-green)]">${frag.title}</div>
+                        <div class="text-[9px] px-2 py-0.5 bg-[var(--matrix-green)]/20 text-[var(--matrix-green)] rounded uppercase font-bold">Bonus: ${frag.bonus.val}x ${frag.bonus.type}</div>
+                    </div>
+                    <p class="text-[10px] opacity-70 italic leading-relaxed">"${frag.lore}"</p>
+                `;
+                listDiv.appendChild(div);
+            });
+            recoveryDiv.appendChild(listDiv);
+        }
+
+        this.els.archiveContent.appendChild(recoveryDiv);
+    }
+
+    handleRecoverMemory() {
+        const result = this.state.recoverMemory();
+        if (result.success) {
+            this.playSFX('recovery_success');
+            this.logMessage(`> RECOVERY_SUCCESS: ${result.frag.title} SECURED.`, "#00FF41");
+            this.renderArchive();
+            this.update(); 
+        } else {
+            this.playSFX('glitch_static', { volume: 0.3 });
+            this.logMessage(`> RECOVERY_FAILED: ${result.msg}`, "#ff003c");
+        }
     }
 
     renderLab() {

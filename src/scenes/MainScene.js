@@ -1,4 +1,5 @@
 import { AICore } from '../entities/AICore.js';
+import { AudioManager } from '../core/AudioManager.js';
 
 /**
  * MainScene: The primary Phaser scene for the AI Training Center.
@@ -8,8 +9,19 @@ export class MainScene extends Phaser.Scene {
         super('MainScene');
     }
 
+    preload() {
+        this.load.image('pixel', 'assets/pixel.png');
+        this.audio = new AudioManager(this);
+        this.audio.preload();
+    }
+
     create() {
         this.engine = this.game.gameEngine;
+        if (this.audio) {
+            this.audio.setup();
+            // Sync audio setting from state
+            this.audio.toggle(this.engine.state.settings.audio);
+        }
         const { width, height } = this.scale;
 
         // Background Atmosphere
@@ -40,6 +52,7 @@ export class MainScene extends Phaser.Scene {
             // 1. Boss Interaction (Global)
             if (state.isBossActive) {
                 const damage = state.addCredits(state.clickPower);
+                if (this.audio) this.audio.play('data_pulse', { detune: Math.random() * 200 });
                 if (core) {
                     core.showFloatingText(pointer.x, pointer.y, `DMG: ${damage.gain.toFixed(0)}`, '#ff003c');
                     core.onInteraction(pointer);
@@ -50,12 +63,14 @@ export class MainScene extends Phaser.Scene {
             // 2. Overheat Check
             if (state.isOverheated) {
                 this.cameras.main.shake(100, 0.005);
+                if (this.audio) this.audio.play('glitch_static', { volume: 0.5 });
                 if (core) core.showFloatingText(pointer.x, pointer.y, 'OVERHEAT', '#ff0000');
                 return;
             }
 
             // 3. Normal Interaction (Global - Screen Wide)
             const data = state.addCredits(state.clickPower);
+            if (this.audio) this.audio.play('ui_click', { volume: 0.3, detune: Math.random() * 100 });
             state.addHeat(state.heatPerClick);
             state.totalClicks++;
             
@@ -82,32 +97,8 @@ export class MainScene extends Phaser.Scene {
             blendMode: 'ADD'
         });
 
-        // Matrix Rain Layer (Visible only at Singularity)
-        this.matrixLayer = this.add.container(0, 0).setAlpha(0);
-        for(let i = 0; i < 40; i++) {
-            const column = this.add.text(Phaser.Math.Between(0, width), Phaser.Math.Between(-height, 0), this.generateMatrixStr(), {
-                fontFamily: 'JetBrains Mono', fontSize: '14px', color: '#00FF41', alpha: 0.4
-            });
-            this.matrixLayer.add(column);
-            this.tweens.add({
-                targets: column,
-                y: height + 200,
-                duration: Phaser.Math.Between(3000, 7000),
-                repeat: -1,
-                ease: 'Linear',
-                onRepeat: () => {
-                    column.setText(this.generateMatrixStr());
-                    column.x = Phaser.Math.Between(0, width);
-                }
-            });
-        }
     }
 
-    generateMatrixStr() {
-        let str = '';
-        for(let i = 0; i < 20; i++) str += String.fromCharCode(0x30A0 + Math.random() * 96) + '\n';
-        return str;
-    }
 
     setupGrid() {
         const { width, height } = this.scale;
@@ -181,10 +172,6 @@ export class MainScene extends Phaser.Scene {
         this.engine.state.update(deltaSeconds);
         this.engine.ui.update();
 
-        // Update Matrix Rain Alpha based on singularity
-        if (this.engine.state.milestones.singularity) {
-            this.matrixLayer.setAlpha(0.2);
-        }
 
         // Update Entities
         if (this.aiCore) {

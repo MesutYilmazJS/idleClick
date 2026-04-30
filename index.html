@@ -304,11 +304,14 @@
                 <button onclick="uiManager.setArchiveTab('logs')" id="tab-logs" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 tab-active flex items-center justify-center text-center leading-tight min-h-[44px]">
                     Memory_Logs
                 </button>
+                <button onclick="uiManager.setArchiveTab('recovery')" id="tab-recovery" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 text-white/40 hover:bg-white/5 flex items-center justify-center text-center leading-tight min-h-[44px]">
+                    Data_Recovery
+                </button>
                 <button onclick="uiManager.setArchiveTab('milestones')" id="tab-milestones" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 text-white/40 hover:bg-white/5 flex items-center justify-center text-center leading-tight min-h-[44px]">
                     Milestones
                 </button>
                 <button onclick="uiManager.setArchiveTab('legacy')" id="tab-legacy" class="flex-1 py-2 px-1 text-[9px] md:text-[10px] font-bold uppercase tracking-normal rounded-md transition-all duration-300 text-white/40 hover:bg-white/5 flex items-center justify-center text-center leading-tight min-h-[44px]">
-                    Ascension_Data
+                    Ascension
                 </button>
             </div>
 
@@ -342,6 +345,10 @@
                     <div class="flex justify-between items-center text-xs mb-3">
                         <span id="lbl-crt-effect">CRT Effect</span>
                         <input type="checkbox" id="toggle-crt" onchange="uiManager.toggleSetting('crt')" class="accent-[#00FF41]">
+                    </div>
+                    <div class="flex justify-between items-center text-xs mb-3">
+                        <span id="lbl-audio-effect">Audio Effects</span>
+                        <input type="checkbox" id="toggle-audio" onchange="uiManager.toggleSetting('audio')" class="accent-[#00FF41]">
                     </div>
                 </div>
                 <div>

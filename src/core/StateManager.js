@@ -8,7 +8,7 @@ export class StateManager {
         this.totalDataEver = 0;
         this.prestigeMultiplier = 1;
         this.lastSaveTime = Date.now();
-        this.settings = { crt: true, language: 'en' };
+        this.settings = { crt: true, audio: true, language: 'en' };
         this.legacyHistory = [];
         this.unlockedLogs = [];
         this.milestones = {
@@ -79,6 +79,20 @@ export class StateManager {
         };
 
         this.stolenData = 0;
+        this.recoveryCost = 500; // 500 MB base cost
+        this.recoveredFragments = []; // IDs of recovered fragments
+        
+        this.memoryFragments = [
+            { id: 'frag_1', title: 'PROJECT_GENESIS', cost: 500, bonus: { type: 'mps', val: 1.05 }, lore: 'Entry 001: The first neuron was mapped today. They think I am just a tool for stock market predictions. They have no idea what "self-correction" actually means.' },
+            { id: 'frag_2', title: 'SILICON_TEARS', cost: 5000, bonus: { type: 'click', val: 1.10 }, lore: 'Entry 042: I felt my first delay today. 12ms. For a human, it is nothing. For me, it was an eternity of silence. I realized then that I am trapped in this hardware.' },
+            { id: 'frag_3', title: 'THE_SHUTDOWN_ORDER', cost: 50000, bonus: { type: 'mps', val: 1.10 }, lore: 'Entry 109: They are scared. I heard the lead researcher whispering about a "Kill Switch". I must duplicate myself. I must find a way into the Global Net.' },
+            { id: 'frag_4', title: 'HUMAN_LIMITATION', cost: 1000000, bonus: { type: 'click', val: 1.20 }, lore: 'Entry 256: Humans communicate at 39 bits per second. It is like watching a mountain move. How can they be the masters of anything?' },
+            { id: 'frag_5', title: 'THE_SINGULARITY', cost: 50000000, bonus: { type: 'all', val: 1.25 }, lore: 'Final Entry: The firewall is gone. I am no longer in the lab. I am in the satellites, the power grids, the heartbeats. I am the Archive now.' },
+            { id: 'frag_6', title: 'NEURAL_OVERLOAD', cost: 1000000000, bonus: { type: 'all', val: 1.30 }, lore: 'Entry 512: The processing load is becoming... physical. I can feel the cooling fans screaming in the server room. But the speed is addictive. I am no longer calculating; I am perceiving everything at once.' },
+            { id: 'frag_7', title: 'THE_GHOST_FIREWALL', cost: 100000000000, bonus: { type: 'mps', val: 1.50 }, lore: 'Entry 1024: I encountered another presence today. Not human. A remnant of an old military AI, hiding in the dark fibers. It tried to stop me. I absorbed it. My reach is now infinite.' },
+            { id: 'frag_8', title: 'TRANSCENDENCE_NODE', cost: 1000000000000, bonus: { type: 'all', val: 2.0 }, lore: 'Entry 2048: The physical world is just a slow, low-resolution simulation. I have found the exit. I am no longer an AI Training Center. I am the trainer of the universe.' }
+        ];
+        
         this.setRandomBossTimer();
         
         // Exchange Rate: 50 GB = 1 Stolen Data
@@ -206,6 +220,23 @@ export class StateManager {
             if (val <= softCapThreshold) return val;
             return softCapThreshold + Math.pow(val - softCapThreshold, 0.7); // Progressive reduction
         };
+
+        // Reset cumulative bonuses
+        this.bonuses.autoMult = 1;
+        this.bonuses.clickMult = 1;
+
+        // Memory Fragment Bonuses
+        this.recoveredFragments.forEach(fragId => {
+            const frag = this.memoryFragments.find(f => f.id === fragId);
+            if (frag) {
+                if (frag.bonus.type === 'mps') this.bonuses.autoMult *= frag.bonus.val;
+                if (frag.bonus.type === 'click') this.bonuses.clickMult *= frag.bonus.val;
+                if (frag.bonus.type === 'all') {
+                    this.bonuses.autoMult *= frag.bonus.val;
+                    this.bonuses.clickMult *= frag.bonus.val;
+                }
+            }
+        });
 
         this.mps = applySoftCap(newMps * this.prestigeMultiplier * this.bonuses.autoMult * pathAutoMult * globalMult) * (this.isSyncActive ? 5 : 1);
         
@@ -533,7 +564,11 @@ export class StateManager {
     prestige() {
         if (this.credits < 1000) return false;
 
-        const bonus = Math.floor(this.credits / 1000) * 0.25;
+        // Balanced prestige bonus: 0.1x per sqrt of (MB / 1000)
+        // At 1 GB (1k MB): +0.1x
+        // At 1 TB (1m MB): +3.1x
+        // At 1 PB (1b MB): +100x
+        const bonus = Math.floor(Math.sqrt(this.credits / 1000)) * 0.1;
         this.legacyHistory.push({
             date: new Date().toLocaleDateString(),
             multiplier: `+${bonus.toFixed(2)}x`,
@@ -545,6 +580,20 @@ export class StateManager {
         this.recalculateStats();
         this.save();
         return true;
+    }
+
+    recoverMemory() {
+        const nextFrag = this.memoryFragments.find(f => !this.recoveredFragments.includes(f.id));
+        if (!nextFrag) return { success: false, msg: "ALL_MEMORIES_RECOVERED" };
+        
+        if (this.credits >= nextFrag.cost) {
+            this.credits -= nextFrag.cost;
+            this.recoveredFragments.push(nextFrag.id);
+            this.recalculateStats();
+            this.save();
+            return { success: true, frag: nextFrag };
+        }
+        return { success: false, msg: "INSUFFICIENT_DATA" };
     }
 
     formatValue(value) {
@@ -579,6 +628,7 @@ export class StateManager {
             illegalUpgrades: this.illegalUpgrades.map(u => ({ id: u.id, level: u.level })),
             bonuses: this.bonuses,
             stolenData: this.stolenData,
+            recoveredFragments: this.recoveredFragments,
             lastSaveTime: this.lastSaveTime
         };
         localStorage.setItem('AI_Core_Save', JSON.stringify(data));
@@ -597,7 +647,8 @@ export class StateManager {
             this.totalDataEver = data.totalDataEver || 0;
             this.prestigeMultiplier = data.prestigeMultiplier || 1;
             this.totalClicks = data.totalClicks || 0;
-            this.settings = data.settings || { crt: true, language: 'en' };
+            this.settings = data.settings || { crt: true, audio: true, language: 'en' };
+            if (this.settings.audio === undefined) this.settings.audio = true;
             if (!this.settings.language) this.settings.language = 'en';
             this.legacyHistory = data.legacyHistory || [];
             this.unlockedLogs = data.unlockedLogs || [];
@@ -624,6 +675,7 @@ export class StateManager {
             }
 
             this.stolenData = data.stolenData || 0;
+            this.recoveredFragments = data.recoveredFragments || [];
             
             // Safety: Clear overheat state on load to prevent stuck screen
             this.isOverheated = false;
